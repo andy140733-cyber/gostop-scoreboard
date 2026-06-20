@@ -23,7 +23,7 @@
         <span class="brand-mark" aria-hidden="true">🌸</span>
         <div class="brand-text">
           <h1>고스톱 점수판</h1>
-          <p class="period-indicator" id="periodIndicator">현재 회차</p>
+          <p class="period-indicator" id="periodIndicator" role="button" tabindex="0" title="회차·판 번호 조정">현재 회차</p>
         </div>
       </div>
       <button class="btn btn-settle" id="btnSettle" type="button">정산하기</button>
@@ -76,7 +76,7 @@
               </select>
             </label>
           </div>
-          <div class="filter-row">
+          <div class="filter-row filter-dates">
             <label class="field">
               <span class="field-label">시작일</span>
               <input type="date" id="fFrom" />
@@ -127,6 +127,11 @@
             <input type="number" id="perPoint" min="0" step="10" />
             <span>원 / 점</span>
           </label>
+        </div>
+        <div class="card setting-card">
+          <h3>회차 · 판 번호 조정</h3>
+          <p class="muted">화면에 표시되는 <b>현재 회차</b>와 <b>판</b> 번호를 실제와 맞춥니다. 점수·기록은 그대로 유지되고 표시 번호만 바뀝니다. (헤더의 회차 표시를 눌러도 됩니다.)</p>
+          <button class="btn btn-ghost" id="btnAdjustPeriod" type="button">번호 조정</button>
         </div>
         <div class="card setting-card">
           <h3>데이터 백업 · 복원 · 기기 이전</h3>
@@ -220,6 +225,17 @@
           <button class="btn btn-primary" id="dataActionBtn" type="button">확인</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- 회차·판 번호 조정 모달 -->
+  <div class="modal-backdrop hidden" id="modalPeriodAdjust">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="periodAdjustTitle">
+      <div class="modal-head">
+        <h2 id="periodAdjustTitle">회차 · 판 번호 조정</h2>
+        <button class="modal-close" data-close="modalPeriodAdjust" type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body" id="periodAdjustBody"></div>
     </div>
   </div>
 

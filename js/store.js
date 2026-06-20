@@ -8,7 +8,8 @@
     return {
       schemaVersion: cfg.SCHEMA_VERSION,
       records: [],
-      settings: { perPointAmount: cfg.DEFAULT_PER_POINT },
+      // periodOffset/gameOffset: 표시되는 회차·판 번호를 실제와 맞추기 위한 보정값(점수엔 영향 없음).
+      settings: { perPointAmount: cfg.DEFAULT_PER_POINT, periodOffset: 0, gameOffset: 0 },
     };
   }
 
@@ -45,6 +46,9 @@
     if (typeof state.settings.perPointAmount !== 'number') {
       state.settings.perPointAmount = cfg.DEFAULT_PER_POINT;
     }
+    // 회차·판 표시 보정값(구버전 데이터엔 없음 → 0으로 보강).
+    if (typeof state.settings.periodOffset !== 'number') state.settings.periodOffset = 0;
+    if (typeof state.settings.gameOffset !== 'number') state.settings.gameOffset = 0;
     state.schemaVersion = cfg.SCHEMA_VERSION;
     return state;
   }

@@ -73,10 +73,17 @@
     cleanRecords.sort((a, b) => a.seq - b.seq);
 
     const perPoint = Number(raw.settings && raw.settings.perPointAmount);
+    const periodOffset = Number(raw.settings && raw.settings.periodOffset);
+    const gameOffset = Number(raw.settings && raw.settings.gameOffset);
     const state = {
       schemaVersion: cfg.SCHEMA_VERSION,
       records: cleanRecords,
-      settings: { perPointAmount: isFinite(perPoint) ? Math.max(0, Math.trunc(perPoint)) : cfg.DEFAULT_PER_POINT },
+      settings: {
+        perPointAmount: isFinite(perPoint) ? Math.max(0, Math.trunc(perPoint)) : cfg.DEFAULT_PER_POINT,
+        // periodOffset 불변식: >= 0 (과거 회차 라벨이 1 미만으로 내려가지 않게). 손상 백업 방어.
+        periodOffset: isFinite(periodOffset) ? Math.max(0, Math.trunc(periodOffset)) : 0,
+        gameOffset: isFinite(gameOffset) ? Math.trunc(gameOffset) : 0,
+      },
     };
     return { ok: true, state, count: cleanRecords.length };
   }

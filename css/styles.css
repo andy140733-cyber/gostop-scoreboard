@@ -20,6 +20,8 @@
   --radius: 18px;
   --radius-sm: 12px;
   font-size: 16px;
+  /* 다크 테마: 네이티브 컨트롤(날짜 선택기 글자/플레이스홀더·스크롤바)도 어둡게 렌더 → 펠트 배경에서 가독성 확보 */
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -35,6 +37,10 @@ html, body {
   font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
+  /* 한글 줄바꿈을 글자 단위가 아닌 어절(공백) 단위로. 단, 띄어쓰기 없는 긴 토큰은
+     넘치지 않도록 break-word로 비상 줄바꿈 허용. 두 속성 모두 상속되어 전역 적용. */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .app {
@@ -71,7 +77,12 @@ html, body {
   margin: 2px 0 0;
   font-size: 12.5px;
   color: var(--muted);
+  cursor: pointer;
+  display: inline-block;
+  border-bottom: 1px dashed transparent;
 }
+.period-indicator:hover,
+.period-indicator:focus-visible { color: var(--cream); border-bottom-color: var(--line); outline: none; }
 
 /* ===== 버튼 ===== */
 .btn {
@@ -187,6 +198,17 @@ select, input[type=date], input[type=number], input[type=text] {
   padding: 9px 10px; font-family: inherit; font-size: 14px; width: 100%;
 }
 input[type=number] { font-variant-numeric: tabular-nums; }
+/* 날짜 필터(시작일·종료일): iOS Safari의 네이티브 date 컨트롤은 width:100%를 무시하고
+   내부 콘텐츠 폭으로 렌더돼 두 칸이 서로 겹친다. 2열 그리드로 폭을 강제하고,
+   appearance 제거 + min-width:0 으로 칸 안에 들어오도록 한다. */
+.filter-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
+.filter-dates .field { min-width: 0; }
+input[type=date] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  min-height: 38px; /* iOS에서 값이 비었을 때 높이가 0으로 줄지 않도록 */
+}
 .chips-row { align-items: center; }
 .chip {
   background: var(--felt-2); border: 1px solid var(--line); color: var(--muted);

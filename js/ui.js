@@ -12,6 +12,7 @@
 
   const PLAYER_IDS = cfg.PLAYER_IDS;
   const label = GS.label;
+  const ADJ_MAX = 99999; // 회차·판 수동 조정 상한 (32비트 오버플로/비정상 입력 방지)
 
   let app = null; // { state, save() }
   const uiState = {
@@ -79,13 +80,13 @@
   }
 
   function renderPeriodIndicator() {
-    const ps = L.periods(app.state);
-    const cur = ps[ps.length - 1];
     const settled = L.settlementCount(app.state);
-    const games = cur.records.filter((r) => r.type === 'game').length;
-    let txt = `${settled + 1}회차 진행 중 · ${games}판`;
+    const periodNo = L.currentPeriodNumber(app.state);
+    const gameNo = L.currentGameNumber(app.state);
+    let txt = `${periodNo}회차 진행 중 · ${gameNo}판`;
     if (settled > 0) txt += ` · 정산 ${settled}회 완료`;
-    $('#periodIndicator').textContent = txt;
+    // ✎는 시각적 편집 표시일 뿐 → aria-hidden 자식으로 분리(스크린리더 접근명에는 숫자만 포함).
+    $('#periodIndicator').innerHTML = esc(txt) + ' <span aria-hidden="true">✎</span>';
   }
 
   /* ====================================================================
@@ -115,7 +116,8 @@
     const prev = sel.value;
     let opts = '<option value="">전체</option>';
     ps.forEach((p) => {
-      const name = p.isCurrent ? `${p.index + 1}회차 (현재)` : `${p.index + 1}회차`;
+      const no = L.periodNumber(app.state, p.index);
+      const name = p.isCurrent ? `${no}회차 (현재)` : `${no}회차`;
       opts += `<option value="${p.index}">${name}</option>`;
     });
     sel.innerHTML = opts;
@@ -234,7 +236,7 @@
       // period
       const sel = $('#statPeriodSelect');
       sel.innerHTML = closed.length
-        ? closed.map((p) => `<option value="${p.index}">${p.index + 1}회차</option>`).join('')
+        ? closed.map((p) => `<option value="${p.index}">${L.periodNumber(app.state, p.index)}회차</option>`).join('')
         : '<option value="">지난 회차 없음</option>';
       if (uiState.statPeriodIndex == null && closed.length) uiState.statPeriodIndex = closed[0].index;
       if (uiState.statPeriodIndex != null) sel.value = String(uiState.statPeriodIndex);
@@ -579,9 +581,105 @@
     const note = $('#settleNote') ? $('#settleNote').value : '';
     const snap = L.currentStandings(app.state);
     R.addSettlement(app.state, note, snap);
+    // 새 회차 시작 → '판' 표시 보정값 초기화(판은 회차마다 다시 0부터). 회차는 정산 수로 자동 +1.
+    app.state.settings.gameOffset = 0;
     closeModal('modalSettle');
     commit();
     toast('정산 완료! 새 회차를 시작합니다.', 'ok');
+  }
+
+  /* ====================================================================
+     회차·판 번호 조정 모달
+  ==================================================================== */
+  let adjustDraft = null;
+
+  function openPeriodAdjustModal() {
+    const minPeriod = L.settlementCount(app.state) + 1; // 정산 n회 → 현재는 최소 n+1회차
+    adjustDraft = {
+      period: L.currentPeriodNumber(app.state),
+      game: L.currentGameNumber(app.state),
+      minPeriod,
+    };
+    buildPeriodAdjustModal();
+    openModal('modalPeriodAdjust');
+  }
+
+  function buildPeriodAdjustModal() {
+    const d = adjustDraft;
+    $('#periodAdjustBody').innerHTML = `
+      <p class="muted">화면에 표시되는 회차·판 번호만 바뀝니다. 점수와 기록은 그대로예요.</p>
+      <div class="form-section">
+        <span class="sec-label">현재 회차</span>
+        <div class="stepper">
+          <button data-act="pdec" type="button">−</button>
+          <input type="number" id="adjPeriod" inputmode="numeric" min="${d.minPeriod}" max="${ADJ_MAX}" value="${esc(d.period)}" />
+          <button data-act="pinc" type="button">＋</button>
+        </div>
+        ${d.minPeriod > 1 ? `<div class="hint">정산 ${d.minPeriod - 1}회 완료 — 현재 회차는 ${d.minPeriod} 이상이어야 합니다.</div>` : ''}
+      </div>
+      <div class="form-section">
+        <span class="sec-label">현재 판</span>
+        <div class="stepper">
+          <button data-act="gdec" type="button">−</button>
+          <input type="number" id="adjGame" inputmode="numeric" min="0" max="${ADJ_MAX}" value="${esc(d.game)}" />
+          <button data-act="ginc" type="button">＋</button>
+        </div>
+        <div class="hint">정산해서 새 회차를 시작하면 판은 자동으로 0부터 다시 셉니다.</div>
+      </div>
+      <div class="errors" id="adjErrors"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-close="modalPeriodAdjust" type="button">취소</button>
+        <button class="btn btn-primary" data-act="save-adjust" type="button">적용</button>
+      </div>`;
+  }
+
+  /** 입력칸에 직접 타이핑한 값을 draft로 흡수(스텝퍼 클릭 전에 호출). */
+  function syncAdjustInputs() {
+    const pEl = $('#adjPeriod'), gEl = $('#adjGame');
+    if (pEl) { const v = parseInt(pEl.value, 10); if (!isNaN(v)) adjustDraft.period = v; }
+    if (gEl) { const v = parseInt(gEl.value, 10); if (!isNaN(v)) adjustDraft.game = v; }
+  }
+
+  // [lo, hi] 범위로 클램프(32비트 | 0 대신 Number 연산 — 큰 입력이 음수로 wrap되지 않게).
+  function clampN(v, lo, hi) {
+    const n = Number(v);
+    if (!isFinite(n)) return lo;
+    return Math.max(lo, Math.min(hi, Math.round(n)));
+  }
+
+  function onPeriodAdjustClick(e) {
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    const act = btn.dataset.act;
+    const d = adjustDraft;
+    syncAdjustInputs();
+    if (act === 'pinc') { d.period = clampN(d.period + 1, d.minPeriod, ADJ_MAX); buildPeriodAdjustModal(); }
+    else if (act === 'pdec') { d.period = clampN(d.period - 1, d.minPeriod, ADJ_MAX); buildPeriodAdjustModal(); }
+    else if (act === 'ginc') { d.game = clampN(d.game + 1, 0, ADJ_MAX); buildPeriodAdjustModal(); }
+    else if (act === 'gdec') { d.game = clampN(d.game - 1, 0, ADJ_MAX); buildPeriodAdjustModal(); }
+    else if (act === 'save-adjust') savePeriodAdjust();
+  }
+
+  function savePeriodAdjust() {
+    const d = adjustDraft;
+    // draft(스텝퍼 값)가 아니라 입력칸의 원시 문자열을 검증 → 빈칸/문자 입력이 조용히 무시되지 않고 오류로 표시됨.
+    const pRaw = ($('#adjPeriod') ? $('#adjPeriod').value : '').trim();
+    const gRaw = ($('#adjGame') ? $('#adjGame').value : '').trim();
+    const p = parseInt(pRaw, 10);
+    const g = parseInt(gRaw, 10);
+    if (pRaw === '' || isNaN(p) || p < d.minPeriod || p > ADJ_MAX) {
+      $('#adjErrors').textContent = `현재 회차는 ${d.minPeriod}~${ADJ_MAX} 사이의 숫자여야 합니다.`;
+      return;
+    }
+    if (gRaw === '' || isNaN(g) || g < 0 || g > ADJ_MAX) {
+      $('#adjErrors').textContent = `현재 판은 0~${ADJ_MAX} 사이의 숫자여야 합니다.`;
+      return;
+    }
+    app.state.settings.periodOffset = p - (L.settlementCount(app.state) + 1);
+    app.state.settings.gameOffset = g - L.currentGameCount(app.state);
+    closeModal('modalPeriodAdjust');
+    commit();
+    toast('회차·판 번호를 조정했습니다.', 'ok');
   }
 
   /* ====================================================================
@@ -714,6 +812,13 @@
     $('#btnAddCorrection').addEventListener('click', () => openCorrectionModal(null));
     $('#btnSettle').addEventListener('click', openSettleModal);
 
+    // 회차·판 번호 조정 (헤더 표시 클릭 + 설정 버튼)
+    $('#periodIndicator').addEventListener('click', openPeriodAdjustModal);
+    $('#periodIndicator').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPeriodAdjustModal(); }
+    });
+    $('#periodAdjustBody').addEventListener('click', onPeriodAdjustClick);
+
     // 필터
     ['#fPeriod', '#fType', '#fWinner', '#fFrom', '#fTo'].forEach((sel) =>
       $(sel).addEventListener('change', renderHistory));
@@ -746,6 +851,7 @@
       app.state.settings.perPointAmount = isNaN(v) || v < 0 ? 0 : v;
       commit();
     });
+    $('#btnAdjustPeriod').addEventListener('click', openPeriodAdjustModal);
     $('#btnExport').addEventListener('click', doExport);
     $('#btnImport').addEventListener('click', () => $('#importFile').click());
     $('#importFile').addEventListener('change', onImportFile);

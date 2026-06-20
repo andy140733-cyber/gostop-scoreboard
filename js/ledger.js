@@ -85,6 +85,27 @@
     return state.records.filter((r) => r.type === 'settlement').length;
   }
 
+  /* ----- 회차·판 번호 (파생값 + 사용자 보정 오프셋) -----
+     회차/판 절대값은 저장하지 않는다. 정산 횟수·게임 수에서 파생하고,
+     settings의 오프셋만 더해 "표시 번호"를 실제와 맞춘다(점수엔 무영향). */
+  function periodOffset(state) { var s = state.settings || {}; return s.periodOffset | 0; }
+  function gameOffset(state) { var s = state.settings || {}; return s.gameOffset | 0; }
+
+  /** index(0-기준)번째 기간의 표시 회차 번호. (오프셋이 비정상이어도 1 미만 방지) */
+  function periodNumber(state, index) { return Math.max(1, index + 1 + periodOffset(state)); }
+
+  /** 현재(마지막 정산 이후) 기간의 표시 회차 번호. */
+  function currentPeriodNumber(state) { return Math.max(1, settlementCount(state) + 1 + periodOffset(state)); }
+
+  /** 현재 기간에 실제 기록된 게임 수(보정 전). */
+  function currentGameCount(state) {
+    const ps = periods(state);
+    return ps[ps.length - 1].records.filter((r) => r.type === 'game').length;
+  }
+
+  /** 현재 기간의 표시 판 번호(실제 게임 수 + 오프셋). 음수 오프셋 + 게임 삭제 조합에도 0 미만 방지. */
+  function currentGameNumber(state) { return Math.max(0, currentGameCount(state) + gameOffset(state)); }
+
   /** 게임 레코드가 특정 특수조건을 포함하는지. */
   function hasSpecial(rec, key) {
     if (rec.type !== 'game') return false;
@@ -153,6 +174,12 @@
     currentPeriodRecords,
     allTimeStandings,
     settlementCount,
+    periodOffset,
+    gameOffset,
+    periodNumber,
+    currentPeriodNumber,
+    currentGameCount,
+    currentGameNumber,
     hasSpecial,
     filter,
   };
