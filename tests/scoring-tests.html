@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>고스톱 점수 엔진 테스트</title>
+  <style>
+    body { font-family: system-ui, 'Malgun Gothic', sans-serif; background: #11241c; color: #eef; margin: 0; padding: 24px; }
+    h1 { font-size: 18px; }
+    #summary { font-size: 16px; font-weight: 700; padding: 10px 14px; border-radius: 8px; margin: 12px 0; display: inline-block; }
+    .pass-all { background: #1b7a43; }
+    .fail-all { background: #a01f2e; }
+    table { border-collapse: collapse; width: 100%; max-width: 920px; font-size: 13px; }
+    th, td { border: 1px solid #2c4a3c; padding: 6px 8px; text-align: left; vertical-align: top; }
+    th { background: #18372a; }
+    .ok { color: #7CFFB0; }
+    .bad { color: #ff8a96; font-weight: 700; }
+    code { color: #ffd479; }
+  </style>
+</head>
+<body>
+  <h1>고스톱 점수 엔진 자체검증</h1>
+  <div id="summary">실행 중…</div>
+  <table id="results">
+    <thead><tr><th>#</th><th>테스트</th><th>기대</th><th>실제</th><th>결과</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/scoring.js"></script>
+  <script>
+    (function () {
+      const S = GS.scoring;
+      const tests = [];
+      function eqDeltas(a, b) {
+        return ['me', 'mom', 'dad'].every((k) => (a[k] | 0) === (b[k] | 0));
+      }
+      function fmt(d) { return `나 ${d.me}, 엄마 ${d.mom}, 아빠 ${d.dad}`; }
+
+      // 델타 검증 테스트
+      function tDelta(name, round, expected) {
+        tests.push(function () {
+          const actual = S.computeDeltas(round);
+          const sumZero = (actual.me + actual.mom + actual.dad) === 0;
+          const pass = eqDeltas(actual, expected) && sumZero;
+          return { name, expected: fmt(expected), actual: fmt(actual) + (sumZero ? '' : ' (합≠0!)'), pass };
+        });
+      }
+      // 검증(validate) 테스트
+      function tValid(name, round, shouldBeOk) {
+        tests.push(function () {
+          const r = S.validateGameInput(round);
+          const pass = r.ok === shouldBeOk;
+          return { name, expected: shouldBeOk ? 'valid' : 'invalid', actual: r.ok ? 'valid' : 'invalid: ' + r.errors.join(' / '), pass };
+        });
+      }
+
+      // === 사용자가 준 예시 3개 ===
+      tDelta('예시1: 나 3점 승, 엄마만 피박', { winner: 'me', base: 3, pibak: { mom: true } }, { me: 9, mom: -6, dad: -3 });
+      tDelta('예시2: 나 3점 승, 폭탄', { winner: 'me', base: 3, bomb: true }, { me: 12, mom: -6, dad: -6 });
+      tDelta('예시3: 엄마 3점 승, 아빠 피박, 대판, 나 독박', { winner: 'mom', base: 3, pibak: { dad: true }, daepan: true, dokbak: 'me' }, { me: -18, mom: 18, dad: 0 });
+
+      // === 엣지케이스 ===
+      tDelta('기본(특수 없음): 나 3점 승', { winner: 'me', base: 3 }, { me: 6, mom: -3, dad: -3 });
+      tDelta('패자 둘 다 피박: 나 3점 승', { winner: 'me', base: 3, pibak: { mom: true, dad: true } }, { me: 12, mom: -6, dad: -6 });
+      tDelta('배수 3종 동시(R=8): 나 2점 승, 폭탄+쓰리고+대판', { winner: 'me', base: 2, bomb: true, threeGo: true, daepan: true }, { me: 32, mom: -16, dad: -16 });
+      tDelta('배수+피박 혼합: 나 3점, 폭탄+대판(R=4), 엄마 피박', { winner: 'me', base: 3, bomb: true, daepan: true, pibak: { mom: true } }, { me: 36, mom: -24, dad: -12 });
+      tDelta('독박+양쪽피박+폭탄: 엄마 3점 승, 나·아빠 피박, 나 독박', { winner: 'mom', base: 3, bomb: true, pibak: { me: true, dad: true }, dokbak: 'me' }, { me: -24, mom: 24, dad: 0 });
+      tDelta('독박이 다른 패자: 아빠 5점 승, 나 독박, 배수 없음', { winner: 'dad', base: 5, dokbak: 'me' }, { me: -10, mom: 0, dad: 10 });
+
+      // === 유효성 검증 ===
+      tValid('정상 입력', { winner: 'me', base: 3 }, true);
+      tValid('독박=승자(불가)', { winner: 'me', base: 3, dokbak: 'me' }, false);
+      tValid('점수 0(불가)', { winner: 'me', base: 0 }, false);
+      tValid('점수 1000(상한초과)', { winner: 'me', base: 1000 }, false);
+      tValid('점수 비정수', { winner: 'me', base: 3.5 }, false);
+      tValid('승자 미선택', { base: 3 }, false);
+      tValid('승자 피박(불가)', { winner: 'me', base: 3, pibak: { me: true } }, false);
+
+      // 실행 & 렌더
+      const tbody = document.querySelector('#results tbody');
+      let passCount = 0;
+      tests.forEach((t, i) => {
+        const r = t();
+        if (r.pass) passCount++;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${i + 1}</td><td>${r.name}</td><td><code>${r.expected}</code></td><td><code>${r.actual}</code></td>` +
+          `<td class="${r.pass ? 'ok' : 'bad'}">${r.pass ? 'PASS' : 'FAIL'}</td>`;
+        tbody.appendChild(tr);
+        console.log(`[${r.pass ? 'PASS' : 'FAIL'}] ${r.name} => ${r.actual}`);
+      });
+      const all = passCount === tests.length;
+      const sum = document.getElementById('summary');
+      sum.textContent = `${passCount} / ${tests.length} PASS ${all ? '✅ 전체 통과' : '❌ 실패 있음'}`;
+      sum.className = all ? 'pass-all' : 'fail-all';
+      window.__TEST_RESULT__ = { pass: passCount, total: tests.length, allPass: all };
+      console.log(`[SUMMARY] ${passCount}/${tests.length} ${all ? 'ALL PASS' : 'HAS FAIL'}`);
+    })();
+  </script>
+</body>
+</html>

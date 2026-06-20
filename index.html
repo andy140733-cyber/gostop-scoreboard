@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0e2b1f" />
+  <title>고스톱 점수판</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%B8%3C/text%3E%3C/svg%3E" />
+  <!-- PWA: 설치형 웹앱 + 오프라인 -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="고스톱 점수판" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- 헤더 -->
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">🌸</span>
+        <div class="brand-text">
+          <h1>고스톱 점수판</h1>
+          <p class="period-indicator" id="periodIndicator">현재 회차</p>
+        </div>
+      </div>
+      <button class="btn btn-settle" id="btnSettle" type="button">정산하기</button>
+    </header>
+
+    <main class="content">
+      <div class="side-col">
+      <!-- 누적 점수판 -->
+      <section class="standings" id="standings" aria-label="현재 누적 점수"></section>
+
+      <!-- 주요 액션 -->
+      <div class="primary-actions">
+        <button class="btn btn-primary btn-add" id="btnAddGame" type="button">＋ 한 판 기록</button>
+        <button class="btn btn-ghost" id="btnAddCorrection" type="button">✎ 점수 보정</button>
+      </div>
+      </div><!-- /side-col -->
+
+      <div class="main-col">
+      <!-- 탭 -->
+      <nav class="tabs" id="tabs" role="tablist">
+        <button class="tab is-active" data-tab="history" role="tab" type="button">기록</button>
+        <button class="tab" data-tab="stats" role="tab" type="button">통계</button>
+        <button class="tab" data-tab="settings" role="tab" type="button">설정</button>
+      </nav>
+
+      <!-- 기록 탭 -->
+      <section class="tab-panel" id="panel-history" role="tabpanel">
+        <div class="filter-bar" id="filterBar">
+          <div class="filter-row">
+            <label class="field">
+              <span class="field-label">회차</span>
+              <select id="fPeriod"></select>
+            </label>
+            <label class="field">
+              <span class="field-label">유형</span>
+              <select id="fType">
+                <option value="">전체</option>
+                <option value="game">게임</option>
+                <option value="correction">보정</option>
+                <option value="settlement">정산</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-label">승자</span>
+              <select id="fWinner">
+                <option value="">전체</option>
+                <option value="me">나</option>
+                <option value="mom">엄마</option>
+                <option value="dad">아빠</option>
+              </select>
+            </label>
+          </div>
+          <div class="filter-row">
+            <label class="field">
+              <span class="field-label">시작일</span>
+              <input type="date" id="fFrom" />
+            </label>
+            <label class="field">
+              <span class="field-label">종료일</span>
+              <input type="date" id="fTo" />
+            </label>
+          </div>
+          <div class="filter-row chips-row" id="fSpecials">
+            <span class="field-label">특수</span>
+            <button class="chip chip-sm" data-special="bomb" type="button">폭탄</button>
+            <button class="chip chip-sm" data-special="threeGo" type="button">쓰리고</button>
+            <button class="chip chip-sm" data-special="daepan" type="button">대판</button>
+            <button class="chip chip-sm" data-special="dokbak" type="button">독박</button>
+            <button class="chip chip-sm" data-special="pibak" type="button">피박</button>
+          </div>
+          <div class="filter-row">
+            <button class="btn btn-ghost btn-sm" id="btnClearFilter" type="button">필터 초기화</button>
+            <span class="filter-count" id="filterCount"></span>
+          </div>
+        </div>
+        <ul class="record-list" id="recordList"></ul>
+      </section>
+
+      <!-- 통계 탭 -->
+      <section class="tab-panel hidden" id="panel-stats" role="tabpanel">
+        <div class="scope-toggle" id="statScope">
+          <button class="seg is-active" data-scope="current" type="button">현재 회차</button>
+          <button class="seg" data-scope="all" type="button">통산 전체</button>
+          <button class="seg" data-scope="period" type="button">지난 회차</button>
+        </div>
+        <div id="statPeriodPick" class="hidden">
+          <label class="field">
+            <span class="field-label">회차 선택</span>
+            <select id="statPeriodSelect"></select>
+          </label>
+        </div>
+        <div id="statsBody"></div>
+      </section>
+
+      <!-- 설정 탭 -->
+      <section class="tab-panel hidden" id="panel-settings" role="tabpanel">
+        <div class="card setting-card">
+          <h3>점당 금액</h3>
+          <p class="muted">정산 시 점수를 금액으로 환산해 보여줍니다. 0이면 점수만 표시합니다.</p>
+          <label class="field inline">
+            <input type="number" id="perPoint" min="0" step="10" />
+            <span>원 / 점</span>
+          </label>
+        </div>
+        <div class="card setting-card">
+          <h3>데이터 백업 · 복원 · 기기 이전</h3>
+          <p class="muted">전체 기록을 파일로 저장하거나, 다른 기기로 옮길 땐 <b>텍스트로 복사</b>해 다른 기기의 <b>붙여넣기로 복원</b>에 붙여넣으세요. 복원하면 현재 데이터를 덮어씁니다.</p>
+          <div class="setting-actions">
+            <button class="btn btn-ghost" id="btnCopyData" type="button">📋 텍스트로 복사</button>
+            <button class="btn btn-ghost" id="btnPasteData" type="button">📥 붙여넣기로 복원</button>
+          </div>
+          <div class="setting-actions" style="margin-top:8px">
+            <button class="btn btn-ghost" id="btnExport" type="button">⬇ 파일로 내보내기</button>
+            <button class="btn btn-ghost" id="btnImport" type="button">⬆ 파일에서 가져오기</button>
+            <input type="file" id="importFile" accept="application/json,.json" hidden />
+          </div>
+        </div>
+        <div class="card setting-card">
+          <h3>정산 이력</h3>
+          <div id="settlementHistory"></div>
+        </div>
+        <div class="card setting-card danger-card">
+          <h3>전체 초기화</h3>
+          <p class="muted">모든 기록을 삭제합니다. 되돌릴 수 없습니다.</p>
+          <button class="btn btn-danger" id="btnReset" type="button">전체 데이터 삭제</button>
+        </div>
+        <p class="storage-note" id="storageNote"></p>
+      </section>
+      </div><!-- /main-col -->
+    </main>
+
+    <p class="app-foot">데이터는 이 기기 브라우저에만 저장됩니다 · 화투 점수판</p>
+  </div>
+
+  <!-- 게임 입력 모달 -->
+  <div class="modal-backdrop hidden" id="modalGame">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="gameModalTitle">
+      <div class="modal-head">
+        <h2 id="gameModalTitle">한 판 기록</h2>
+        <button class="modal-close" data-close="modalGame" type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body" id="gameModalBody"></div>
+    </div>
+  </div>
+
+  <!-- 보정 모달 -->
+  <div class="modal-backdrop hidden" id="modalCorrection">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="corrModalTitle">
+      <div class="modal-head">
+        <h2 id="corrModalTitle">점수 보정</h2>
+        <button class="modal-close" data-close="modalCorrection" type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body" id="corrModalBody"></div>
+    </div>
+  </div>
+
+  <!-- 정산 모달 -->
+  <div class="modal-backdrop hidden" id="modalSettle">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settleModalTitle">
+      <div class="modal-head">
+        <h2 id="settleModalTitle">정산하기</h2>
+        <button class="modal-close" data-close="modalSettle" type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body" id="settleModalBody"></div>
+    </div>
+  </div>
+
+  <!-- 범용 확인 모달 -->
+  <div class="modal-backdrop hidden" id="modalConfirm">
+    <div class="modal modal-sm" role="dialog" aria-modal="true">
+      <div class="modal-body">
+        <p id="confirmText" class="confirm-text"></p>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" id="confirmCancel" type="button">취소</button>
+          <button class="btn btn-danger" id="confirmOk" type="button">확인</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 데이터 텍스트 이전 모달 -->
+  <div class="modal-backdrop hidden" id="modalData">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dataModalTitle">
+      <div class="modal-head">
+        <h2 id="dataModalTitle">데이터</h2>
+        <button class="modal-close" data-close="modalData" type="button" aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="muted" id="dataModalDesc"></p>
+        <textarea id="dataText" class="data-textarea" spellcheck="false" autocomplete="off"></textarea>
+        <div class="errors" id="dataErrors"></div>
+        <div class="modal-actions">
+          <button class="btn btn-ghost" data-close="modalData" type="button">닫기</button>
+          <button class="btn btn-primary" id="dataActionBtn" type="button">확인</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast hidden" id="toast" role="status"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/scoring.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/records.js"></script>
+  <script src="js/ledger.js"></script>
+  <script src="js/money.js"></script>
+  <script src="js/stats.js"></script>
+  <script src="js/backup.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
