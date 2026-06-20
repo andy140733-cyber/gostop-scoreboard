@@ -20,7 +20,7 @@
 
 ## 배포 (GitHub Pages)
 - 저장소 `andy140733-cyber/gostop-scoreboard` (public). 라이브 = https://andy140733-cyber.github.io/gostop-scoreboard/
-- Pages source = **`main` 루트**. `main`에 push하면 ~1분 뒤 자동 재배포. `sw.js`는 네트워크 우선이라 온라인이면 바로 최신.
+- Pages source = **`main` 루트**. `main`에 push하면 ~1분 뒤 자동 재배포. `sw.js`는 네트워크 우선이라 온라인이면 바로 최신. CSS/JS 등 정적 자산 변경 시 `sw.js`의 `CACHE` 버전을 올려 구캐시 무효화(현재 `gostop-cache-v2`).
 - gh CLI 없음. git에 GitHub 자격(GCM, `repo` scope) 캐시됨 → push/API 가능.
 
 ## 인수인계 / 문서
@@ -30,4 +30,5 @@
 
 ## Gotchas
 - 전역 `.hidden { display:none !important }` 규칙 필수(요소 토글에 사용).
+- **모바일 숫자 키패드(`inputmode="numeric"`)엔 −키가 없다**(특히 iOS) → 음수 입력이 필요한 칸은 ±(부호) 토글 버튼을 제공할 것. 점수 보정 모달이 그 예: `corrDraft`가 `{sign, mag}` 분리 구조(실제 델타 = `sign × mag`), `js/ui.js` + CSS `.corr-sign`.
 - Windows에서 `git add` 시 LF→CRLF 경고는 무해.
