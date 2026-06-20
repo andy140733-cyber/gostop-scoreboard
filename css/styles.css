@@ -343,8 +343,17 @@ input[type=date] {
 .modal-actions .btn { flex: 1; padding: 14px; }
 .errors { color: #ffb3bd; font-size: 13px; margin-bottom: 10px; min-height: 0; }
 .confirm-text { font-size: 15px; line-height: 1.6; margin: 6px 0 18px; }
-.corr-row { display: grid; grid-template-columns: 60px 1fr; gap: 10px; align-items: center; margin-bottom: 10px; }
+.corr-row { display: grid; grid-template-columns: 60px auto 1fr; gap: 10px; align-items: center; margin-bottom: 10px; }
 .corr-row .cr-name { font-weight: 800; color: var(--cream); }
+/* 부호 토글: 모바일 숫자 키패드엔 −키가 없어(iOS) 이 버튼으로 음/양수를 전환한다. */
+.corr-sign {
+  min-width: 52px; height: 44px; padding: 0; cursor: pointer;
+  background: var(--felt-2); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 9px;
+  font-family: inherit; font-size: 22px; font-weight: 850; line-height: 1;
+  font-variant-numeric: tabular-nums; transition: all .12s ease;
+}
+.corr-sign.neg { color: #2a0d10; border-color: var(--red-deep); background: linear-gradient(180deg,#e7798a,var(--red)); }
 
 /* 정산 모달 */
 .settle-summary { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin: 8px 0 14px; }

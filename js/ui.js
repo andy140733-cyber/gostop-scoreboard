@@ -494,10 +494,20 @@
   /* ====================================================================
      보정 모달
   ==================================================================== */
+  // 보정값은 부호(±)와 크기(자릿수)를 분리해 보관한다. 모바일 숫자 키패드엔
+  // 마이너스 키가 없어(특히 iOS) 음수 입력이 막히므로, 크기는 숫자 키패드로 입력하고
+  // 부호는 ± 토글 버튼으로 뒤집는다. 실제 델타 = sign * mag.
+  function corrDelta(d, id) { return d.sign[id] * d.mag[id]; }
+
   function openCorrectionModal(editRec) {
-    corrDraft = editRec
+    const init = editRec
       ? { me: editRec.deltas.me, mom: editRec.deltas.mom, dad: editRec.deltas.dad, reason: editRec.reason || '', editingSeq: editRec.seq }
       : { me: 0, mom: 0, dad: 0, reason: '', editingSeq: null };
+    corrDraft = { reason: init.reason, editingSeq: init.editingSeq, sign: {}, mag: {} };
+    PLAYER_IDS.forEach((id) => {
+      corrDraft.sign[id] = init[id] < 0 ? -1 : 1;
+      corrDraft.mag[id] = Math.abs(init[id]);
+    });
     $('#corrModalTitle').textContent = editRec ? '보정 수정' : '점수 보정';
     buildCorrectionModal();
     openModal('modalCorrection');
@@ -505,12 +515,16 @@
 
   function buildCorrectionModal() {
     const d = corrDraft;
-    const rows = PLAYER_IDS.map((id) =>
-      `<div class="corr-row"><span class="cr-name">${esc(label(id))}</span>
-        <input type="number" inputmode="numeric" data-corr="${id}" value="${esc(d[id])}" placeholder="0" /></div>`
-    ).join('');
+    const rows = PLAYER_IDS.map((id) => {
+      const neg = d.sign[id] < 0;
+      const magText = d.mag[id] === 0 ? '' : String(d.mag[id]);
+      return `<div class="corr-row"><span class="cr-name">${esc(label(id))}</span>
+        <button class="corr-sign${neg ? ' neg' : ''}" data-corrsign="${id}" type="button"
+          aria-label="${esc(label(id))} 부호 전환" aria-pressed="${neg}">${neg ? '−' : '+'}</button>
+        <input type="number" inputmode="numeric" min="0" data-corr="${id}" value="${esc(magText)}" placeholder="0" /></div>`;
+    }).join('');
     $('#corrModalBody').innerHTML = `
-      <p class="muted">잘못 계산된 점수를 직접 조정합니다. 더할 값은 양수, 뺄 값은 음수로 입력하세요. (예: 나 +5, 엄마 −5)</p>
+      <p class="muted">잘못 계산된 점수를 직접 조정합니다. 숫자(크기)를 입력하고, 뺄 값이면 왼쪽 ± 버튼을 눌러 −(음수)로 바꾸세요. (예: 나 +5, 엄마 −5)</p>
       <div class="form-section">${rows}</div>
       <div class="form-section">
         <span class="sec-label">사유 (선택)</span>
@@ -524,14 +538,25 @@
   }
 
   function onCorrModalClick(e) {
+    // 부호(±) 토글: 전체 재렌더 없이 해당 버튼만 갱신해 다른 입력칸의 포커스/값을 보존.
+    const signBtn = e.target.closest('[data-corrsign]');
+    if (signBtn) {
+      const id = signBtn.dataset.corrsign;
+      corrDraft.sign[id] = corrDraft.sign[id] < 0 ? 1 : -1;
+      const neg = corrDraft.sign[id] < 0;
+      signBtn.textContent = neg ? '−' : '+';
+      signBtn.classList.toggle('neg', neg);
+      signBtn.setAttribute('aria-pressed', String(neg));
+      return;
+    }
     const btn = e.target.closest('[data-act]');
     if (!btn || btn.dataset.act !== 'save-corr') return;
     const d = corrDraft;
-    if ((d.me | 0) === 0 && (d.mom | 0) === 0 && (d.dad | 0) === 0) {
+    const deltas = { me: corrDelta(d, 'me'), mom: corrDelta(d, 'mom'), dad: corrDelta(d, 'dad') };
+    if (deltas.me === 0 && deltas.mom === 0 && deltas.dad === 0) {
       $('#corrErrors').textContent = '조정할 점수를 1명 이상 입력하세요.';
       return;
     }
-    const deltas = { me: d.me, mom: d.mom, dad: d.dad };
     const res = d.editingSeq
       ? R.updateCorrection(app.state, d.editingSeq, deltas, d.reason)
       : R.addCorrection(app.state, deltas, d.reason);
@@ -545,8 +570,24 @@
     const t = e.target;
     if (!t.dataset.corr) return;
     const key = t.dataset.corr;
-    if (key === 'reason') corrDraft.reason = t.value;
-    else { const v = parseInt(t.value, 10); corrDraft[key] = isNaN(v) ? 0 : v; }
+    if (key === 'reason') { corrDraft.reason = t.value; return; }
+    const raw = t.value;
+    const v = parseInt(raw, 10);
+    const mag = isNaN(v) ? 0 : Math.abs(v);
+    corrDraft.mag[key] = mag; // 입력칸은 '크기'만 담당(부호는 ± 버튼이 담당)
+    // 데스크톱에서 '−'를 직접 타이핑하면 ① 부호 버튼을 음수로 맞추고 ② 입력칸의 '−'를 즉시
+    // 제거해 크기만 남긴다. 칸에 '−'가 절대 남지 않으므로 부호 이중 표기(−(−5))와, '−'만 지워도
+    // 부호가 안 풀리는 단방향 불일치가 모두 사라진다(부호 전환은 오직 ± 버튼). 양수 타이핑 경로는
+    // '−'가 없어 이 블록을 건너뛰므로 캐럿이 보존된다. (iOS 숫자 키패드엔 '−'키가 없어 무관)
+    if (raw.indexOf('-') !== -1) {
+      if (corrDraft.sign[key] > 0) {
+        corrDraft.sign[key] = -1;
+        const btn = t.closest('.corr-row') && t.closest('.corr-row').querySelector('.corr-sign');
+        if (btn) { btn.textContent = '−'; btn.classList.add('neg'); btn.setAttribute('aria-pressed', 'true'); }
+      }
+      const norm = mag === 0 ? '' : String(mag);
+      if (t.value !== norm) t.value = norm;
+    }
   }
 
   /* ====================================================================

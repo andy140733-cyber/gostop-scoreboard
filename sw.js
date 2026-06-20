@@ -1,5 +1,5 @@
 /* sw.js — 오프라인 지원 서비스워커 (앱 셸 캐시) */
-const CACHE = 'gostop-cache-v1';
+const CACHE = 'gostop-cache-v2';
 const ASSETS = [
   './',
   './index.html',
