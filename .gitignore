@@ -11,3 +11,6 @@ desktop.ini
 # Logs / temp
 *.log
 .playwright-mcp/
+
+# 다른 프로젝트의 참고용 인수인계 예시 (public 저장소 제외)
+myPaper_인수인계_*.md
